@@ -1,0 +1,65 @@
+version: '3.8'
+services:
+  payment-service-postgres:
+    image: postgres:13-alpine
+    container_name: payment-service-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-ev_payment_db}
+    ports:
+      - "5435:5432"
+    volumes:
+      - payment-service-db:/var/lib/postgresql/data
+    networks:
+      - payment-service-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: payment-service
+    ports:
+      - "8005:8005"
+    environment:
+      DB_HOST: payment-service-postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-ev_payment_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      EUREKA_SERVER: ${EUREKA_SERVER:-http://localhost:8761/eureka/}
+      JWT_SECRET: ${JWT_SECRET:-mySecretKeyForJWTTokenGenerationAndValidationWithMinimum32Characters}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://evrechargeindia.com,https://www.evrechargeindia.com,http://localhost:4200}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://evrechargeindia.com}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-placeholder_secret}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-placeholder_webhook_secret}
+      RAZORPAY_PROVIDER_SPLIT_PERCENT: ${RAZORPAY_PROVIDER_SPLIT_PERCENT:-85}
+      JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx512m}
+    networks:
+      - payment-service-network
+    depends_on:
+      payment-service-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  payment-service-db:
+    driver: local
+
+networks:
+  payment-service-network:
+    driver: bridge

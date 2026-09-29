@@ -1,0 +1,10 @@
+.idea/
+.vscode/
+target/
+build/
+*.jar
+*.war
+logs/
+*.log
+.env
+.DS_Store
