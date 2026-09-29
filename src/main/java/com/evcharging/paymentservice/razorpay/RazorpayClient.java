@@ -44,6 +44,10 @@ public class RazorpayClient {
         return exchange(HttpMethod.POST, "/v1/customers", body);
     }
 
+    public Map<String, Object> fetchCustomer(String customerId) {
+        return exchange(HttpMethod.GET, "/v1/customers/" + customerId, null);
+    }
+
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> listCustomerTokens(String customerId) {
         Map<String, Object> response = exchange(HttpMethod.GET, "/v1/customers/" + customerId + "/tokens", null);
@@ -57,6 +61,15 @@ public class RazorpayClient {
 
     public Map<String, Object> createRefund(String paymentId, Map<String, Object> body) {
         return exchange(HttpMethod.POST, "/v1/payments/" + paymentId + "/refund", body);
+    }
+
+    public Map<String, Object> fetchPayment(String paymentId) {
+        return exchange(HttpMethod.GET, "/v1/payments/" + paymentId, null);
+    }
+
+    /** Charges a previously-saved card/UPI token with no browser/checkout involved (a "merchant-initiated" recurring charge). */
+    public Map<String, Object> chargeSavedToken(String tokenId, Map<String, Object> body) {
+        return exchange(HttpMethod.POST, "/v1/payments/create/" + tokenId, body);
     }
 
     public Map<String, Object> createRouteAccount(Map<String, Object> body) {

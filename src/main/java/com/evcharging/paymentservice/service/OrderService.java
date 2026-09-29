@@ -3,13 +3,10 @@ package com.evcharging.paymentservice.service;
 import com.evcharging.paymentservice.client.BackendClient;
 import com.evcharging.paymentservice.client.BookingInfo;
 import com.evcharging.paymentservice.dto.OrderResponse;
-import com.evcharging.paymentservice.entity.ProviderPayoutAccount;
 import com.evcharging.paymentservice.entity.Transaction;
 import com.evcharging.paymentservice.razorpay.RazorpayClient;
-import com.evcharging.paymentservice.repository.ProviderPayoutAccountRepository;
 import com.evcharging.paymentservice.repository.TransactionRepository;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,13 +36,10 @@ public class OrderService {
     private TransactionRepository transactionRepository;
 
     @Autowired
-    private ProviderPayoutAccountRepository payoutAccountRepository;
+    private TransferCalculator transferCalculator;
 
     @Autowired
     private PaymentMethodService paymentMethodService;
-
-    @Value("${app.razorpay.provider-split-percent}")
-    private int providerSplitPercent;
 
     @Transactional
     public OrderResponse createOrder(Long bookingId, Long callerUserId, String bearerToken) {
@@ -81,8 +75,7 @@ public class OrderService {
         Long platformFeePaise = null;
         String providerAccountId = null;
 
-        Optional<ProviderPayoutAccount> payout = payoutAccountRepository.findByProviderId(booking.getProviderId());
-        boolean canSplit = payout.isPresent() && "ACTIVATED".equals(payout.get().getStatus());
+        Optional<TransferCalculator.Transfer> transfer = transferCalculator.computeTransfer(booking.getProviderId(), amountPaise);
 
         Map<String, Object> body = new HashMap<>();
         body.put("amount", amountPaise);
@@ -93,10 +86,11 @@ public class OrderService {
                 "userId", String.valueOf(booking.getUserId()),
                 "providerId", String.valueOf(booking.getProviderId())));
 
-        if (canSplit) {
-            providerAccountId = payout.get().getRazorpayAccountId();
-            providerAmountPaise = Math.round(amountPaise * (providerSplitPercent / 100.0));
-            platformFeePaise = amountPaise - providerAmountPaise;
+        if (transfer.isPresent()) {
+            TransferCalculator.Transfer t = transfer.get();
+            providerAccountId = t.getRazorpayAccountId();
+            providerAmountPaise = t.getProviderAmountPaise();
+            platformFeePaise = t.getPlatformFeePaise();
             body.put("transfers", List.of(Map.of(
                     "account", providerAccountId,
                     "amount", providerAmountPaise,

@@ -14,4 +14,5 @@ public class PaymentMethodResponse {
     private String cardLast4;
     private String cardNetwork;
     private String upiVpaMasked;
+    private boolean isPrimary;
 }
