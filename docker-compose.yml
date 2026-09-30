@@ -35,7 +35,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       EUREKA_SERVER: ${EUREKA_SERVER:-http://localhost:8761/eureka/}
       JWT_SECRET: ${JWT_SECRET:-mySecretKeyForJWTTokenGenerationAndValidationWithMinimum32Characters}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://evrechargeindia.com,https://www.evrechargeindia.com,http://localhost:4200}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://evrechargeindia.com,https://www.evrechargeindia.com,http://localhost:4200,capacitor://localhost,https://localhost}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://evrechargeindia.com}
       RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-rzp_test_placeholder}
       RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-placeholder_secret}
