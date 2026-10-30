@@ -5,7 +5,10 @@ import com.evcharging.paymentservice.service.PaymentMethodService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestClientResponseException;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
@@ -14,6 +17,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/payments/methods")
 public class PaymentMethodController extends BaseAuthenticatedController {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentMethodController.class);
 
     @Autowired
     private PaymentMethodService paymentMethodService;
@@ -31,7 +36,17 @@ public class PaymentMethodController extends BaseAuthenticatedController {
         if (!hasRole("USER")) {
             return forbidden("Only drivers can add a payment method");
         }
-        return ResponseEntity.ok(paymentMethodService.createSetupOrder(currentEntityId(), bearerToken(httpRequest)));
+        try {
+            return ResponseEntity.ok(paymentMethodService.createSetupOrder(currentEntityId(), bearerToken(httpRequest)));
+        } catch (RestClientResponseException e) {
+            log.error("Razorpay rejected the payment-method setup: {} {}", e.getRawStatusCode(), e.getResponseBodyAsString());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error",
+                    "The payment provider rejected the request (check the Razorpay API keys). Please try again later."));
+        } catch (RuntimeException e) {
+            log.error("Could not start payment-method setup", e);
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error",
+                    "Could not reach the payment provider. Please try again later."));
+        }
     }
 
     @PostMapping("/setup/verify")
