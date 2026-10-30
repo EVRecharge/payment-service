@@ -15,4 +15,5 @@ public class TransactionResponse {
     private String currency;
     private String status;
     private LocalDateTime createdAt;
+    private Long refundedAmountPaise;
 }

@@ -28,6 +28,7 @@ public class TransactionController extends BaseAuthenticatedController {
     }
 
     private TransactionResponse toResponse(Transaction tx) {
-        return new TransactionResponse(tx.getBookingId(), tx.getAmountPaise(), tx.getCurrency(), tx.getStatus(), tx.getCreatedAt());
+        return new TransactionResponse(tx.getBookingId(), tx.getAmountPaise(), tx.getCurrency(), tx.getStatus(), tx.getCreatedAt(),
+                tx.getRefundedAmountPaise());
     }
 }

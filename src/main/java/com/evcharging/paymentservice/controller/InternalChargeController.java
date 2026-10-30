@@ -1,9 +1,12 @@
 package com.evcharging.paymentservice.controller;
 
+import com.evcharging.paymentservice.dto.CancelRefundRequest;
 import com.evcharging.paymentservice.dto.ChargeBookingRequest;
+import com.evcharging.paymentservice.service.RefundService;
 import com.evcharging.paymentservice.service.BookingChargeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,6 +27,19 @@ public class InternalChargeController extends BaseAuthenticatedController {
 
     @Autowired
     private BookingChargeService bookingChargeService;
+
+    @Autowired
+    private RefundService refundService;
+
+    @PostMapping("/bookings/{bookingId}/cancel-refund")
+    public ResponseEntity<?> cancelRefund(@PathVariable Long bookingId,
+                                          @Valid @RequestBody CancelRefundRequest request) {
+        if (!hasRole("SERVICE")) {
+            return forbidden("Internal endpoint");
+        }
+        refundService.refundForCancellation(bookingId, request.getRetainPercent());
+        return ResponseEntity.ok(Map.of("message", "Cancellation processed"));
+    }
 
     @PostMapping("/bookings/{bookingId}/charge")
     public ResponseEntity<?> charge(@Valid @RequestBody ChargeBookingRequest request) {

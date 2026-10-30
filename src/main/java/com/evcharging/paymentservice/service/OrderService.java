@@ -66,6 +66,9 @@ public class OrderService {
         if (!booking.getUserId().equals(callerUserId)) {
             throw new SecurityException("You can only pay for your own booking");
         }
+        if (!"CONFIRMED".equals(booking.getStatus())) {
+            throw new IllegalStateException("You can pay once the provider confirms your booking");
+        }
         if (booking.getTotalCost() == null || booking.getTotalCost() <= 0) {
             throw new IllegalStateException("Booking has no payable amount");
         }

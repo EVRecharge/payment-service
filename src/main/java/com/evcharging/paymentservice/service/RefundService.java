@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
+import java.util.Optional;
 
 /** Reverses a captured payment (e.g. a cancelled booking). Reversing transfers too, when there were any, is what {@code reverse_all} does. */
 @Service
@@ -18,6 +19,36 @@ public class RefundService {
 
     @Autowired
     private RazorpayClient razorpayClient;
+
+    /**
+     * Refunds a cancelled-after-confirmation booking, keeping {@code retainPercent} of the amount as
+     * the cancellation fee (0 = full refund). Called by booking-service, so there's no caller to
+     * authorize here. A booking that was never actually charged has nothing to refund.
+     */
+    @Transactional
+    public Optional<Transaction> refundForCancellation(Long bookingId, int retainPercent) {
+        Optional<Transaction> found = transactionRepository.findByBookingId(bookingId);
+        if (found.isEmpty() || !"CAPTURED".equals(found.get().getStatus())) {
+            return Optional.empty();
+        }
+        Transaction tx = found.get();
+        long retained = Math.round(tx.getAmountPaise() * (retainPercent / 100.0));
+        long refundPaise = tx.getAmountPaise() - retained;
+        if (refundPaise <= 0) {
+            return Optional.of(tx);
+        }
+
+        Map<String, Object> body = Map.of(
+                "amount", refundPaise,
+                "speed", "normal",
+                "reverse_all", tx.getProviderAccountId() != null ? 1 : 0);
+        Map<String, Object> refund = razorpayClient.createRefund(tx.getRazorpayPaymentId(), body);
+
+        tx.setStatus(retained > 0 ? "PARTIALLY_REFUNDED" : "REFUNDED");
+        tx.setRazorpayRefundId((String) refund.get("id"));
+        tx.setRefundedAmountPaise(refundPaise);
+        return Optional.of(transactionRepository.save(tx));
+    }
 
     @Transactional
     public Transaction refund(Long bookingId, Long callerEntityId, boolean callerIsProvider) {
