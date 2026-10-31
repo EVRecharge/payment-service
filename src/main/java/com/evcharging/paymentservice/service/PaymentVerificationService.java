@@ -23,6 +23,9 @@ public class PaymentVerificationService {
     private TransactionRepository transactionRepository;
 
     @Autowired
+    private PaymentRecordService paymentRecordService;
+
+    @Autowired
     private RazorpaySignatureVerifier signatureVerifier;
 
     @Transactional
@@ -47,6 +50,7 @@ public class PaymentVerificationService {
             tx.setRazorpayPaymentId(request.getRazorpayPaymentId());
             tx.setStatus("CAPTURED");
             transactionRepository.save(tx);
+            paymentRecordService.recordPayment(tx);
         }
         return tx;
     }

@@ -33,6 +33,9 @@ public class WebhookService {
     private RazorpaySignatureVerifier signatureVerifier;
 
     @Autowired
+    private PaymentRecordService paymentRecordService;
+
+    @Autowired
     private WebhookEventRepository webhookEventRepository;
 
     @Autowired
@@ -95,6 +98,7 @@ public class WebhookService {
             tx.setRazorpayPaymentId(paymentId);
             tx.setStatus("CAPTURED");
             transactionRepository.save(tx);
+            paymentRecordService.recordPayment(tx);
         });
     }
 

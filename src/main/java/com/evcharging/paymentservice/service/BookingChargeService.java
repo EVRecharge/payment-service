@@ -28,6 +28,9 @@ public class BookingChargeService {
     private TransactionRepository transactionRepository;
 
     @Autowired
+    private PaymentRecordService paymentRecordService;
+
+    @Autowired
     private PaymentMethodService paymentMethodService;
 
     @Autowired
@@ -120,5 +123,8 @@ public class BookingChargeService {
             tx.setStatus("CAPTURED");
         }
         transactionRepository.save(tx);
+        if ("CAPTURED".equals(tx.getStatus())) {
+            paymentRecordService.recordPayment(tx);
+        }
     }
 }

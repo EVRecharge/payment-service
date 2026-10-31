@@ -15,6 +15,9 @@ import java.util.Optional;
 public class RefundService {
 
     @Autowired
+    private PaymentRecordService paymentRecordService;
+
+    @Autowired
     private TransactionRepository transactionRepository;
 
     @Autowired
@@ -47,7 +50,9 @@ public class RefundService {
         tx.setStatus(retained > 0 ? "PARTIALLY_REFUNDED" : "REFUNDED");
         tx.setRazorpayRefundId((String) refund.get("id"));
         tx.setRefundedAmountPaise(refundPaise);
-        return Optional.of(transactionRepository.save(tx));
+        Transaction saved = transactionRepository.save(tx);
+        paymentRecordService.recordRefund(saved);
+        return Optional.of(saved);
     }
 
     @Transactional
@@ -72,6 +77,8 @@ public class RefundService {
         tx.setStatus("REFUNDED");
         tx.setRazorpayRefundId((String) refund.get("id"));
         tx.setRefundedAmountPaise(tx.getAmountPaise());
-        return transactionRepository.save(tx);
+        Transaction saved = transactionRepository.save(tx);
+        paymentRecordService.recordRefund(saved);
+        return saved;
     }
 }
