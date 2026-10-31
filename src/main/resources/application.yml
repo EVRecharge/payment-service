@@ -44,6 +44,9 @@ app:
     api-base-url: ${RAZORPAY_API_BASE_URL:https://api.razorpay.com}
     # Percentage (0-100) of each booking's amount that is transferred to the provider's linked
     # Razorpay account at capture time; the remainder is the platform's commission.
+    # Simulated payment-method setup: no call to Razorpay, the method is saved straight away. Set
+    # RAZORPAY_MOCK_SETUP=false once real keys are configured.
+    mock-setup: ${RAZORPAY_MOCK_SETUP:true}
     provider-split-percent: ${RAZORPAY_PROVIDER_SPLIT_PERCENT:85}
 
 logging:

@@ -32,6 +32,13 @@ public class RazorpayClient {
     @Value("${app.razorpay.api-base-url}")
     private String apiBaseUrl;
 
+    @Value("${app.razorpay.mock-setup:false}")
+    private boolean mockSetup;
+
+    public boolean isMockSetup() {
+        return mockSetup;
+    }
+
     public String getKeyId() {
         return keyId;
     }

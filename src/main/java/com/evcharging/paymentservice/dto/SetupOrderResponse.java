@@ -14,4 +14,6 @@ public class SetupOrderResponse {
     private String currency;
     private String razorpayKeyId;
     private String razorpayCustomerId;
+    /** True when setup is simulated: the client skips Razorpay Checkout and verifies directly. */
+    private boolean mock;
 }

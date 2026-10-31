@@ -81,6 +81,10 @@ public class PaymentMethodService {
 
     @Transactional
     public SetupOrderResponse createSetupOrder(Long userId, String bearerToken) {
+        if (razorpayClient.isMockSetup()) {
+            return new SetupOrderResponse("order_mock_" + System.currentTimeMillis(), SETUP_AMOUNT_PAISE, "INR",
+                    razorpayClient.getKeyId(), "cust_mock_" + userId, true);
+        }
         String customerId = resolveOrCreateCustomer(userId, bearerToken);
         Map<String, Object> body = new HashMap<>();
         body.put("amount", SETUP_AMOUNT_PAISE);
@@ -90,12 +94,15 @@ public class PaymentMethodService {
 
         Map<String, Object> order = razorpayClient.createOrder(body);
         return new SetupOrderResponse((String) order.get("id"), SETUP_AMOUNT_PAISE, "INR",
-                razorpayClient.getKeyId(), customerId);
+                razorpayClient.getKeyId(), customerId, false);
     }
 
     @Transactional
     @SuppressWarnings("unchecked")
     public PaymentMethodResponse verifySetup(Long userId, VerifySetupRequest request) {
+        if (razorpayClient.isMockSetup()) {
+            return verifyMockSetup(userId, request);
+        }
         boolean valid = signatureVerifier.verifyCheckoutSignature(
                 request.getRazorpayOrderId(), request.getRazorpayPaymentId(), request.getRazorpaySignature());
         if (!valid) {
@@ -159,6 +166,52 @@ public class PaymentMethodService {
         entity.setPrimary(isFirstMethod);
         savedPaymentMethodRepository.save(entity);
 
+        return toResponse(entity);
+    }
+
+    /** Simulated Razorpay success: records the method against the user without contacting Razorpay. */
+    private PaymentMethodResponse verifyMockSetup(Long userId, VerifySetupRequest request) {
+        String method = request.getMockMethod();
+        if (!"card".equals(method) && !"upi".equals(method)) {
+            throw new IllegalArgumentException("Choose a card or UPI to save");
+        }
+        String last4 = null;
+        String network = null;
+        String vpaMasked = null;
+        if ("card".equals(method)) {
+            last4 = request.getMockCardLast4();
+            if (last4 == null || !last4.matches("\\d{4}")) {
+                throw new IllegalArgumentException("Card details are incomplete");
+            }
+            network = request.getMockCardNetwork() == null || request.getMockCardNetwork().isBlank()
+                    ? "card" : request.getMockCardNetwork().trim().toLowerCase();
+        } else {
+            String vpa = request.getMockVpa();
+            if (vpa == null || !vpa.matches("[A-Za-z0-9][A-Za-z0-9.\\-_]{1,255}@[A-Za-z][A-Za-z0-9]{1,63}")) {
+                throw new IllegalArgumentException("Enter a valid UPI ID");
+            }
+            vpaMasked = maskVpa(vpa);
+        }
+
+        // Re-adding the same card / UPI ID returns the one already saved.
+        for (SavedPaymentMethod existing : savedPaymentMethodRepository.findByUserId(userId)) {
+            if (method.equals(existing.getMethod())
+                    && (last4 != null ? last4.equals(existing.getCardLast4()) && network.equals(existing.getCardNetwork())
+                                      : vpaMasked.equals(existing.getUpiVpaMasked()))) {
+                return toResponse(existing);
+            }
+        }
+
+        SavedPaymentMethod entity = new SavedPaymentMethod();
+        entity.setUserId(userId);
+        entity.setRazorpayTokenId("token_mock_" + java.util.UUID.randomUUID().toString().replace("-", ""));
+        entity.setMethod(method);
+        entity.setCardLast4(last4);
+        entity.setCardNetwork(network);
+        entity.setUpiVpaMasked(vpaMasked);
+        entity.setPrimary(!savedPaymentMethodRepository.existsByUserId(userId));
+        savedPaymentMethodRepository.save(entity);
+        log.info("Saved simulated {} payment method for user {}", method, userId);
         return toResponse(entity);
     }
 
