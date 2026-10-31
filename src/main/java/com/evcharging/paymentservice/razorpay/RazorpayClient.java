@@ -63,6 +63,11 @@ public class RazorpayClient {
         return exchange(HttpMethod.POST, "/v1/payments/" + paymentId + "/refund", body);
     }
 
+    public Map<String, Object> capturePayment(String paymentId, long amountPaise, String currency) {
+        return exchange(HttpMethod.POST, "/v1/payments/" + paymentId + "/capture",
+                Map.of("amount", amountPaise, "currency", currency));
+    }
+
     public Map<String, Object> fetchPayment(String paymentId) {
         return exchange(HttpMethod.GET, "/v1/payments/" + paymentId, null);
     }

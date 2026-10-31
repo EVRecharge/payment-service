@@ -31,10 +31,15 @@ public class BackendClient {
         return response.getBody();
     }
 
+    /** Best-effort: callers fall back to a generic name when the lookup fails, so this never throws. */
     public UserContact findUser(Long userId, String bearerToken) {
-        var response = restTemplate.exchange(
-                publicBaseUrl + "/api/users/" + userId, HttpMethod.GET, authorized(bearerToken), UserContact.class);
-        return response.getBody();
+        try {
+            var response = restTemplate.exchange(
+                    publicBaseUrl + "/api/users/" + userId, HttpMethod.GET, authorized(bearerToken), UserContact.class);
+            return response.getBody();
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private HttpEntity<Void> authorized(String bearerToken) {

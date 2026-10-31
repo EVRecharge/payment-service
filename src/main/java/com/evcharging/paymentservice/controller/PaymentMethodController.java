@@ -60,6 +60,10 @@ public class PaymentMethodController extends BaseAuthenticatedController {
             return forbidden(e.getMessage());
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
+        } catch (RestClientResponseException e) {
+            log.error("Razorpay rejected saving a payment method: {} {}", e.getRawStatusCode(), e.getResponseBodyAsString());
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of("error",
+                    "The payment provider could not confirm this payment method. Please try again."));
         }
     }
 

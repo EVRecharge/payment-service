@@ -17,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,11 +60,15 @@ public class PaymentMethodService {
                 .map(PaymentCustomer::getRazorpayCustomerId)
                 .orElseGet(() -> {
                     UserContact user = backendClient.findUser(userId, bearerToken);
-                    Map<String, Object> body = Map.of(
-                            "name", user != null ? user.fullName() : ("Driver #" + userId),
-                            "email", user != null && user.getEmail() != null ? user.getEmail() : "",
-                            "contact", user != null && user.getPhoneNumber() != null ? user.getPhoneNumber() : "",
-                            "fail_existing", "0");
+                    Map<String, Object> body = new HashMap<>();
+                    body.put("name", user != null ? user.fullName() : ("Driver #" + userId));
+                    if (user != null && user.getEmail() != null && !user.getEmail().isBlank()) {
+                        body.put("email", user.getEmail());
+                    }
+                    if (user != null && user.getPhoneNumber() != null && !user.getPhoneNumber().isBlank()) {
+                        body.put("contact", user.getPhoneNumber());
+                    }
+                    body.put("fail_existing", "0");
                     Map<String, Object> customer = razorpayClient.createCustomer(body);
                     String customerId = (String) customer.get("id");
                     PaymentCustomer entity = new PaymentCustomer();
@@ -98,10 +103,40 @@ public class PaymentMethodService {
         }
 
         Map<String, Object> payment = razorpayClient.fetchPayment(request.getRazorpayPaymentId());
+        // An uncaptured authorization can't be refunded (and some accounts don't auto-capture), so capture it first.
+        if ("authorized".equals(payment.get("status"))) {
+            payment = razorpayClient.capturePayment(request.getRazorpayPaymentId(), SETUP_AMOUNT_PAISE, "INR");
+        }
+
+        String method = (String) payment.get("method");
+        Map<String, Object> card = (Map<String, Object>) payment.get("card");
+        String vpa = (String) payment.get("vpa");
         String tokenId = (String) payment.get("token_id");
+
+        // Not every payment response carries the token id -- fall back to the customer's newest saved token.
         if (tokenId == null || tokenId.isBlank()) {
+            Map<String, Object> token = findNewestToken(userId, method);
+            if (token != null) {
+                tokenId = (String) token.get("id");
+                if (card == null) {
+                    card = (Map<String, Object>) token.get("card");
+                }
+                if (vpa == null && token.get("vpa") instanceof Map) {
+                    vpa = (String) ((Map<String, Object>) token.get("vpa")).get("username");
+                }
+            }
+        }
+        if (tokenId == null || tokenId.isBlank()) {
+            log.warn("Razorpay returned no reusable token for payment {} (method {}) for user {}",
+                    request.getRazorpayPaymentId(), method, userId);
             throw new IllegalStateException(
                     "This payment method doesn't support being saved for reuse. Try a different card.");
+        }
+
+        // Saving the same card twice is a no-op, not a duplicate row.
+        Optional<SavedPaymentMethod> already = savedPaymentMethodRepository.findByUserIdAndRazorpayTokenId(userId, tokenId);
+        if (already.isPresent()) {
+            return toResponse(already.get());
         }
 
         // The INR 1 authorization was only to obtain a reusable token -- refund it immediately.
@@ -112,8 +147,6 @@ public class PaymentMethodService {
             log.warn("Could not auto-refund the payment-method setup charge for user {}: {}", userId, e.getMessage());
         }
 
-        String method = (String) payment.get("method");
-        Map<String, Object> card = (Map<String, Object>) payment.get("card");
         boolean isFirstMethod = !savedPaymentMethodRepository.existsByUserId(userId);
 
         SavedPaymentMethod entity = new SavedPaymentMethod();
@@ -122,11 +155,30 @@ public class PaymentMethodService {
         entity.setMethod(method);
         entity.setCardLast4(card != null ? (String) card.get("last4") : null);
         entity.setCardNetwork(card != null ? (String) card.get("network") : null);
-        entity.setUpiVpaMasked("upi".equals(method) ? maskVpa((String) payment.get("vpa")) : null);
+        entity.setUpiVpaMasked("upi".equals(method) ? maskVpa(vpa) : null);
         entity.setPrimary(isFirstMethod);
         savedPaymentMethodRepository.save(entity);
 
         return toResponse(entity);
+    }
+
+    /** The most recently created token on the user's Razorpay customer for this payment method, if any. */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> findNewestToken(Long userId, String method) {
+        Optional<String> customerId = getCustomerId(userId);
+        if (customerId.isEmpty()) {
+            return null;
+        }
+        try {
+            return razorpayClient.listCustomerTokens(customerId.get()).stream()
+                    .filter(t -> method == null || method.equals(t.get("method")))
+                    .max(Comparator.comparingLong(t -> t.get("created_at") instanceof Number
+                            ? ((Number) t.get("created_at")).longValue() : 0L))
+                    .orElse(null);
+        } catch (Exception e) {
+            log.warn("Could not list Razorpay tokens for user {}: {}", userId, e.getMessage());
+            return null;
+        }
     }
 
     public List<PaymentMethodResponse> listMethods(Long userId) {

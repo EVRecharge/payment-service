@@ -2,6 +2,7 @@ package com.evcharging.paymentservice.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.NoArgsConstructor;
 
 @Data
@@ -14,5 +15,6 @@ public class PaymentMethodResponse {
     private String cardLast4;
     private String cardNetwork;
     private String upiVpaMasked;
+    @JsonProperty("isPrimary")
     private boolean isPrimary;
 }
